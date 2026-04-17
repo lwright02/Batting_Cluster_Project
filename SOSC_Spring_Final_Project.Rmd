@@ -28,7 +28,7 @@ library(sf)
 Understanding how Major League Baseball (MLB) players hits are distributed across the diamond is central to
 evaluating defensive strategies. While traditional statistics summarize performance outcomes, they often overlook the spatial dimension of hitting.
 
-This project investigates whether MLB hitters exhibit spatial clustering in their batted ball locations, and how these patterns of concentration vary among a selection of high-volume hitters. We are using data from the 2023 MLB regular season.
+This project investigates whether MLB hitters exhibit spatial clustering in their batted ball locations, and how these patterns of concentration vary among a selection of high-volume hitters. We are using data from the 2023 MLB regular season. 
 
 
 \newpage
