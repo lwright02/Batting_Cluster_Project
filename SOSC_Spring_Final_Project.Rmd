@@ -36,6 +36,26 @@ This project investigates whether MLB hitters exhibit spatial clustering in thei
 
 
 
+\newpage
+# Data and Methodology
+
+To arrive at the 15 players of interest for this study, MLB players with at least 500 plate appearances (PAs) in the 2023 season were identified. 136 players met this criteria. Then batted ball dispersion data for each player was collected, and this data captures how frequently each player hits the ball to each field direction. The metrics of interest were pull percentage (pull%), opposite-field percentage (oppo%), and straight ahead percentage (cent%). Then each player was classified into one of four archetypes: balanced, center, opposite-field (oppo), or pull. If a player’s pull%, oppo%, or cent% is larger than 40% they were classified into the associated archetype of the direction the tend to hit the most. If a player’s pull%, oppo%, and cent% were all less than 40% this hitter would be classified as a balanced hitter. 
+
+75 of the players were classified as pull hitters, 51 as balanced hitters, 9 as center hitters, and 1 as an opposite field hitter. A stratified sampling approach was then used to ensure representation across all player archetypes. Based on proportional allocation from the full sample of 136 players, the initial values were approximately 8.27 pull hitters, 5.63 balanced hitters, 0.99 center hitters, and 0.11 opposite-field hitters given a sample size of 15 total players.  
+
+These values were then rounded to produce the final sample. Center and opposite-field hitters were both rounded to 1 ensuring that each archetype is represented in the sample. This rounding occurred because excluding the smaller groups would eliminate meaningful variation in hitting tendencies. Pull and balanced hitters were rounded down to 8 and 5 to maintain the total sample size of 15 while keeping the distribution as close as possible to the original proportions. 
+
+A final sample size of fifteen was chosen to balance representativeness of the overall 136 player population and to ensure the dataset remained manageable for spatial analysis.
+
+The fifteen players chosen are as follows. Pull Hitters: Tyler Stephenson-R, Whit Merrifield-R, Jake Cronenworth-L, Seiya Suzuki-R, CJ Abrams-L, Josh Lowe-L, Josh Jung-R, Teoscar Hernández-R. Balanced hitters: Trent Grisham-L, Pete Alonso-R, Eugenio Suárez-R, TJ Friedl-L, J.T. Realmuto-R. Center Hitter: Yandy Díaz-R. Opposite-Field Hitter: Bo Bichette-R.
+
+The side from which a player bats was not considered in constructing the sampling method. Nevertheless, the resulting sample which consisted of 5 left-handed batters and 10 right-handed batters approximately reflects the overall distribution of handedness in Major League Baseball of 30.3% (Grondin et al., 1999, as cited in Nachtigal & Barnes, 2019).
+
+
+
+
+
+
 
 
 
