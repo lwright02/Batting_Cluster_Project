@@ -1,0 +1,117 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+\thispagestyle{empty}
+\begin{center}
+\vspace*{2cm}
+{\LARGE \textbf{An Analysis of Spatial Clustering in MLB Batted Ball Distributions}}\\[1.5cm]
+{\large Liam Wright \\ Rayyan Haider}\\[1.2cm]
+{\large SOSC 13320}\\
+{\large Spatial Analysis III}\\
+{\large Spring 2026}\\[1cm]
+{\large Professor: Gianluca Sperone}\\[2cm]
+\vfill
+\end{center}
+
+\newpage
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(sf)
+```
+
+# Introduction
+
+Understanding how Major League Baseball (MLB) players hits are distributed across the diamond is central to
+evaluating defensive strategies. While traditional statistics summarize performance outcomes, they often overlook the spatial dimension of hitting.
+
+This project investigates whether MLB hitters exhibit spatial clustering in their batted ball locations, and how these patterns of concentration vary among a selection of high-volume hitters. We are using data from the 2023 MLB regular season.
+
+
+\newpage
+# Literature Background
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
