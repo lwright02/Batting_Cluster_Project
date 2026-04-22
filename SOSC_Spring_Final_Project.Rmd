@@ -43,6 +43,18 @@ Gergis (2024) provides a recent and comprehensive analysis of on-base percentage
 
 Machine learning applications have been further extended to optimization in outfield defensive positioning. A study analyzing over fifty-one thousand batted balls from the 2023 MLB season evaluates how outfield positioning influences defensive outcomes. Results show that for ever one foot increase in straight line distance between a batted ball and the fielder, the odds of a hit increase by about five percent. They also found that higher exit velocity and steeper launch angles are associated with a lower probability of a base hit. However, their findings also suggest that MLB outfielder positions are already near-optimal in most cases. The minimal difference in machine-learning metrics and actual defensive positions show a convergence towards a positional equilibrium. Teams independently arrive at similar spatial strategies.
 
+A recent study using large language models to generate baseball spray charts. Using collegiate play-by-play text, they constructed approximately ninety-five percent accurate spray charts when compared to video tracking. The study finds that aggregated spatial patterns are highly stable despite noisy inputs (Michielssen 2024). These results introduce the idea that hitter outcomes are not randomly distributed across the field, but rather structured in spatial density patterns. While spray charts are effective in summarizing batted ball tendencies, they aggregate continuous spatial variation into discrete regions of the field, limiting their ability to provide meaningful results when it comes to if their exists actual statistically significant clustering. Therefore, there is motivation to apply clustering methods of spatial analysis to batted ball locations in order move beyond simple descriptive visualization.
+
+A complementary line of research suggests a spatial structure in baseball data, when observations are grouped rather than analyzed in isolation. Marcou (2020) focuses on pitchers and the quality of contact they allow. He finds that while individual metrics such as exit velocity show substantial variability, clustering reveals that pitches tend to fall into stable groups. For instance, sinker-heavy pitchers exhibit ground ball rates near fifty-nine percent, whereas other pitcher profiles show roughly forty percent ground ball rates. Building on this idea, our project shifts the analysis from pitches to batters themselves. By applying spatial clustering methods, we aim to determine whether hitters exhibit similar latent profiles in terms of where they put the ball in play.
+
+
+
+
+
+
+
+
+
 
 
 
