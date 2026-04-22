@@ -28,11 +28,19 @@ library(sf)
 Understanding how Major League Baseball (MLB) players hits are distributed across the diamond is central to
 evaluating defensive strategies. While traditional statistics summarize performance outcomes, they often overlook the spatial dimension of hitting.
 
-This project investigates whether MLB hitters exhibit spatial clustering in their batted ball locations, and how these patterns of concentration vary among a selection of high-volume hitters. We are using data from the 2023 MLB regular season.  
+This project investigates whether MLB hitters exhibit spatial clustering in their batted ball locations, and how these patterns of concentration vary among a selection of high-volume hitters. We are using data from the 2023 MLB regular season.  High-volume hitters will be defined as any player with a minimum of 500 plate appearances and a minimum of 100 batted balls in play. 
 
+To implement this analysis, we will employ spatial clustering methods such as density-based clustering or kernel density estimation to identify regions of high batted ball concentration. Then we will assess statistical significance through a series of permutations, determining whether clustering patterns deviate from randomness.
 
 \newpage
 # Literature Background
+
+The increasing availability of high-resolution tracking data has transformed the metrics and analysis of performance in Major League Baseball. Statcast, as described by the MLB is a "state-of-the-art tracking technology" that enables researches to investigate aspects of gameplay beyond the traditional box scores "in ways that were never possible in the past" (MLB 2026). Some of these granular aspects include swing mechanics, and ball flight. Statcast was originally implemented in 2015 consisting of a combination of cameras and radar systems, however in 2020, the MLB added the Hawk-Eye, a high-speed camera allowing for a replay system and various new features.
+
+One substantial body of work examines batting performance and offensive prediction, leveraging Statcast data including "launch angle, launch velocity, and hit distance" (Bailey 2017). Using logistic regression to estimate the hit probabilities, these predictions are then aggregated to forecast future batting averages. Importantly, Bailey's analysis utilized Statcast data in combination with Player Empirical Comparison and Optimization Test Algorithm (PECOTA), a prediction system that considers previous seasons to predict batting averages. A linear regression was conducted on the relationship between the previous PECOTA and new Statcast data to create an even stronger metric for predicting batting averages.
+
+
+
 
 
 
