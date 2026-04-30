@@ -56,13 +56,11 @@ Another study that builds on the spatial structure in batting outcomes examines 
 
 Kaji and Sylvan (2023) apply point pattern analysis to MLB batted-ball locations to model the inhomogeneous Poisson process underlying batted-ball distributions. They use statcast data and compare hitters by handedness. This study explores kernel density smoothing with optimal bandwidth selection, producing heat maps that visually distinguish the spatial patterns of right-handed and left-handed hitters. They only test three players, whereas our study expands this to fifteen players. Our study further builds directly on this framework but extends it to a different stratification of hitters, density based clustering, and significance testing to assess clustering patterns and if or how they deviate from spatial randomness.
 
-https://www.mathsportinternational.com/MathSport2023Proceedings.pdf#page=26
+Hochstedler (2016) explores the application of spatiotemporal machine learning techniques in professional sports. Methods such as Voronoi tessellations and neural networks demonstrate how spatial data can inform decision-making in sports. His work highlights the importance of spatial structure in player and ball movement, however largely assumes the existence of meaningful spatial patterns. Building on this, our project seeks to formally test whether these spatial structures exist in batted-ball distributions, and further test the significance of these spatial structures.
 
-https://www.tandfonline.com/doi/abs/10.1080/02664763.2020.1775792
+A complementary line of research emphasizes the importance of modeling batted-ball outcomes independently of external factors such as defense or varying ballparks. Healey (2017) develops a Bayesian model that uses kernel density estimation to construct a continuous mapping from batted-ball parameters including exit velocity and launch angle. Healey's use of nonparametric density estimation reinforces the need to treat batted-alls as a continuous spatial phenomenon. Our analysis recognizes that meaningful interpretation of our clusters requires accounting for underlying contact and other variables, outside of simply observed outcomes.
 
-https://dspace.mit.edu/handle/1721.1/112451
-
-
+Young (2020) models the spatial distribution of batted-balls directly through spray-chart densities. They develop a Synthetic Estimate Average Matchup (SEAM) methodology which estimates the conditional distribution of balls-in-play for batter-pitcher matchups. This study incorporates player characteristics across similar players to model the structured probability distributions of different matchups. Young highlights the importance of density estimation techniques in capturing these patterns. Our analysis shifts this study from estimating conditional spray distributions to identifying spatial clustering.
 
 
 \newpage
