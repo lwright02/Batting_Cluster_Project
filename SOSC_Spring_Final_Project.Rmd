@@ -50,20 +50,11 @@ A complementary line of research suggests a spatial structure in baseball data, 
 Oda and Hirotsu (2026) extend on Marcou's research as they develop a framework for classifying fielders in the Nippon Professional Baseball league using Gaussian model clustering. Using a dataset of one-hundred and fifteen hitting-related variables over three-hundred and twenty-seven players. They reduce multidimensional via principal component analysis, filtering for components that explain about seventy percent of the variance in performance categories related to plate discipline and win probability. This study finds that players grouped within the same cluster exhibit similar latent performance profiles. The authors multidimensional approach captures nuances that are overlooked by individual metrics. Our project moves the clustering work done by Oda from feature space to the physical space. The core argument that one-hundred and fifteen hitting indices can be condensed into distinct latent dimensions supports our aggregation. The spatial clustering we aim to perform reveals latent geographic structure in batted-ball locations.
 
 Cox (2010) provides a direct methodological precedent for spatial analysis of batted-ball locations in the MLB. Cox performs a spatial clustering of batted ball locations, through a hot spot analysis and Moran's
-I for significance. Cox examines manually collected data from the 2009 season at the Texas Rangers ballpark. She goes on to perform density surface estimation and test for autocorrelation. This analysis lays the groundwork for our project. Her analysis was confined to a single ballpark and balls that left the field of play, however she notes that the framework could be extended to any batted-balls. Our project applies spatial clustering methods to all batted-balls in play across a stratified sample.
+I for significance. Cox examines manually collected data from the 2009 season at the Texas Rangers ballpark, pre-statcast. She goes on to perform density surface estimation and test for autocorrelation. This analysis lays the groundwork for our project. Her analysis was confined to a single ballpark and balls that left the field of play, however she notes that the framework could be extended to any batted-balls. Our project applies spatial clustering methods to all batted-balls in play across a stratified sample. This study lays the groundwork for methodology that we aim to extend to a different question using more updated statcast data.
 
+Another study that builds on the spatial structure in batting outcomes examines batting ability as a spatial Gaussian field with isotropic covariance. Cross and Sylvan (2015) empirically demonstrate that batting performance exhibits spatial dependence. They demonstrate through Monte Carlo simulations that traditional grid-based heat maps produce inaccurate estimate of batter ability. They found that a spatial analysis substantially outperforms discrete summaries. This study demonstrates the methodological value of treating space continuously, a vital component to our analysis. Extending this line of work, Comiskey (2017) develops variable-resolution heat maps that adapt to changing density across the strike zone. This analysis addressed the computational bottleneck that Bayesian spatial models face with batted-ball data. Combined, these works astablish batting outcomes requiring methods beyond discrete summarization. This study directly reinforces our analysis choice aims to utilize Kernal Density Estimations over fixed grids. Our point-pattern and clustering approach serve as a complementary methodology.
 
-
-
-
-https://www.degruyterbrill.com/document/doi/10.1515/jqas-2014-0089/html
-
-
-https://www.proquest.com/docview/900867912?pq-origsite=gscholar&fromopenview=true&sourcetype=Dissertations%20&%20Theses
-
-
-
-https://ir.library.oregonstate.edu/concern/graduate_thesis_or_dissertations/37720j172
+Kaji and Sylvan (2023)
 
 https://www.mathsportinternational.com/MathSport2023Proceedings.pdf#page=26
 
