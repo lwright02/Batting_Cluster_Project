@@ -1,0 +1,920 @@
+---
+title: "Bo Bichette In-Depth Analysis"
+author: "Rayyan Haider"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    toc: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center",
+  fig.width = 8,
+  fig.height = 6
+)
+```
+
+# Purpose
+
+This document analyzes Bo Bichette's 2023 balls in play using a corrected and internally consistent coordinate system. The key correction is that the baseball diamond overlay is now drawn in the same transformed Statcast coordinate units as the batted-ball locations. This prevents second base, the mound, and the infield from being plotted unrealistically far into the outfield.
+
+This version also separates **physical field-space coordinates** from **batter-perspective directional coordinates**. The field-space analyses use no handedness adjustment: KDE, 9-zone maps, Moran's I, LISA, Ripley's L, convex hull-style spatial summaries if added later, and entropy-style spatial summaries if added later should all use the unflipped field coordinates. Handedness adjustment is used only for spray-angle analysis, pull/center/opposite classification, mean spray angle, and directional statistics.
+
+# Load Packages and Data
+
+```{r libraries}
+library(baseballr)
+library(dplyr)
+library(readr)
+library(httr)
+library(ggplot2)
+library(tidyr)
+library(knitr)
+library(sf)
+library(purrr)
+```
+
+```{r download-data}
+# Bo Bichette MLBAM ID
+bo_id <- 666182
+
+# Direct Baseball Savant CSV URL for Bo Bichette 2023 batting Statcast data
+url <- paste0(
+  "https://baseballsavant.mlb.com/statcast_search/csv?",
+  "all=true&hfPT=&hfAB=&hfBBT=&hfPR=&hfZ=&stadium=&hfBBL=&hfNewZones=&",
+  "hfGT=R%7CPO%7CS%7C&hfC=&hfSea=2023%7C&hfSit=&hfOuts=&opponent=&",
+  "pitcher_throws=&batter_stands=&hfSA=&player_type=batter&hfInfield=&",
+  "team=&position=&hfOutfield=&hfRO=&home_road=&",
+  "batters_lookup%5B%5D=", bo_id,
+  "&game_date_gt=2023-03-30&game_date_lt=2023-10-01&hfFlag=&hfPull=&",
+  "metric_1=&hfInn=&min_pitches=0&min_results=0&group_by=name&",
+  "sort_col=pitches&player_event_sort=h_launch_speed&sort_order=desc&",
+  "min_abs=0&type=details"
+)
+
+# Download to a temporary file
+tmp <- tempfile(fileext = ".csv")
+GET(url, write_disk(tmp, overwrite = TRUE))
+
+# Read CSV directly
+bo_raw <- read_csv(tmp, show_col_types = FALSE)
+
+# Keep only balls in play with valid Statcast hit-coordinate values
+bo_bip <- bo_raw %>%
+  filter(type == "X", !is.na(hc_x), !is.na(hc_y)) %>%
+  select(
+    player_name,
+    game_date,
+    events,
+    stand,
+    batter,
+    pitcher,
+    hc_x,
+    hc_y,
+    launch_speed,
+    launch_angle,
+    hit_distance_sc,
+    estimated_ba_using_speedangle,
+    estimated_woba_using_speedangle
+  )
+
+# Save cleaned file for reproducibility
+write_csv(bo_bip, "bo_bichette_2023_bip.csv")
+
+nrow(bo_bip)
+```
+
+# Coordinate System and Field Geometry
+
+The Statcast `hc_x` and `hc_y` values are not geographic coordinates and should not be treated as a GIS CRS. They are display-style hit-coordinate values. The analysis below centers home plate at approximately `(0, 0)` using the same no-handedness field-space transformation throughout the document:
+
+\[
+\text{field\_x} = hc_x - 125
+\]
+
+\[
+\text{field\_y} = 200 - hc_y
+\]
+
+The baseball diamond is then scaled into these same coordinate units by dividing official baseball distances in feet by `2.5`. This makes second base, the pitcher's mound, and the other bases align with the transformed Statcast coordinate system rather than being plotted too deep into the outfield.
+
+```{r coordinate-system-and-field-geometry}
+# -----------------------------
+# Coordinate transformation constants
+# -----------------------------
+HOME_PLATE_HC_X <- 125
+HOME_PLATE_HC_Y <- 200
+FEET_PER_STATCAST_UNIT <- 2.5
+
+# Helper function: feet to transformed Statcast plotting units
+ft_to_units <- function(feet) feet / FEET_PER_STATCAST_UNIT
+
+# -----------------------------
+# Create plotting dataset
+# -----------------------------
+bo_plot <- bo_bip %>%
+  filter(!is.na(hc_x), !is.na(hc_y)) %>%
+  mutate(
+    # Physical field coordinates in transformed Statcast units.
+    # IMPORTANT: these are NOT handedness-adjusted and should be used for
+    # KDE, 9-zone maps, Moran's I, LISA, Ripley's L, convex hulls, and entropy.
+    field_x = hc_x - HOME_PLATE_HC_X,
+    field_y = HOME_PLATE_HC_Y - hc_y,
+
+    # Backward-compatible aliases used by the plotting code below.
+    # These remain physical field-space coordinates, not batter-perspective flips.
+    spray_x = field_x,
+    spray_y = field_y,
+
+    # Batter-perspective x-coordinate used ONLY for directional statistics.
+    # Right-handed batters keep the physical x-coordinate; left-handed batters are reflected.
+    batter_x = if_else(stand == "L", -field_x, field_x),
+    batter_y = field_y,
+
+    result_class = case_when(
+      events == "single" ~ "Single",
+      events == "double" ~ "Double",
+      events == "triple" ~ "Triple",
+      events == "home_run" ~ "Home Run",
+      events %in% c(
+        "field_out", "force_out", "grounded_into_double_play",
+        "double_play", "triple_play", "fielders_choice_out",
+        "sac_fly", "sac_bunt", "other_out"
+      ) ~ "Out",
+      events == "field_error" ~ "Error",
+      is.na(events) ~ "Other",
+      TRUE ~ "Other"
+    )
+  )
+
+# -----------------------------
+# Field geometry in same units as field_x / field_y
+# -----------------------------
+base_90 <- ft_to_units(90)
+first_base_center  <- c(base_90 / sqrt(2), base_90 / sqrt(2))
+second_base_center <- c(0, base_90 * sqrt(2))
+third_base_center  <- c(-base_90 / sqrt(2), base_90 / sqrt(2))
+
+mound <- data.frame(
+  x = 0,
+  y = ft_to_units(60.5)
+)
+
+# helper function to make a small rotated square for each base
+make_base <- function(cx, cy, s = ft_to_units(7), name = "base") {
+  data.frame(
+    x = c(cx, cx + s, cx, cx - s, cx),
+    y = c(cy + s, cy, cy - s, cy, cy + s),
+    base = name
+  )
+}
+
+first_base <- make_base(first_base_center[1], first_base_center[2], name = "First")
+second_base <- make_base(second_base_center[1], second_base_center[2], name = "Second")
+third_base <- make_base(third_base_center[1], third_base_center[2], name = "Third")
+bases_poly <- bind_rows(first_base, second_base, third_base)
+
+home_plate <- data.frame(
+  x = ft_to_units(c(-8.5 / 12, -8.5 / 12, 0, 8.5 / 12, 8.5 / 12, -8.5 / 12)),
+  y = ft_to_units(c(0, 8.5 / 12, 17 / 12, 8.5 / 12, 0, 0))
+)
+
+# Foul lines and field arcs in same coordinate units
+foul_line_distance <- ft_to_units(335)
+center_field_distance <- ft_to_units(410)
+infield_arc_radius <- ft_to_units(95)
+
+foul_lines <- data.frame(
+  x = c(0, -foul_line_distance / sqrt(2), 0, foul_line_distance / sqrt(2)),
+  y = c(0,  foul_line_distance / sqrt(2), 0, foul_line_distance / sqrt(2)),
+  grp = c("L", "L", "R", "R")
+)
+
+theta_in <- seq(pi / 4, 3 * pi / 4, length.out = 200)
+infield_arc <- data.frame(
+  x = infield_arc_radius * cos(theta_in),
+  y = infield_arc_radius * sin(theta_in)
+)
+
+theta_out <- seq(pi / 4, 3 * pi / 4, length.out = 300)
+outfield_arc <- data.frame(
+  x = center_field_distance * cos(theta_out),
+  y = center_field_distance * sin(theta_out)
+)
+
+# Plot limits based on both data and field geometry
+plot_x_limits <- c(
+  min(c(bo_plot$field_x, outfield_arc$x, foul_lines$x), na.rm = TRUE) - 5,
+  max(c(bo_plot$field_x, outfield_arc$x, foul_lines$x), na.rm = TRUE) + 5
+)
+plot_y_limits <- c(
+  0,
+  max(c(bo_plot$field_y, outfield_arc$y, foul_lines$y), na.rm = TRUE) + 5
+)
+
+# A reusable field overlay layer function
+add_field_overlay <- function() {
+  list(
+    geom_path(data = outfield_arc, aes(x = x, y = y), linewidth = 0.9, color = "black", inherit.aes = FALSE),
+    geom_path(data = infield_arc, aes(x = x, y = y), linewidth = 0.9, color = "black", inherit.aes = FALSE),
+    geom_line(data = filter(foul_lines, grp == "L"), aes(x = x, y = y), linewidth = 0.9, color = "black", inherit.aes = FALSE),
+    geom_line(data = filter(foul_lines, grp == "R"), aes(x = x, y = y), linewidth = 0.9, color = "black", inherit.aes = FALSE),
+    geom_polygon(data = bases_poly, aes(x = x, y = y, group = base), fill = "white", color = "black", linewidth = 0.9, inherit.aes = FALSE),
+    geom_polygon(data = home_plate, aes(x = x, y = y), fill = "white", color = "black", linewidth = 0.9, inherit.aes = FALSE),
+    geom_point(data = mound, aes(x = x, y = y), size = 2, color = "black", inherit.aes = FALSE)
+  )
+}
+```
+
+# Spray Chart
+
+```{r spray-chart, fig.width=8, fig.height=6}
+ggplot() +
+  add_field_overlay() +
+  geom_point(
+    data = bo_plot,
+    aes(x = field_x, y = field_y, color = result_class),
+    alpha = 0.7,
+    size = 2.2
+  ) +
+  coord_fixed(xlim = plot_x_limits, ylim = plot_y_limits, expand = FALSE) +
+  labs(
+    title = "Bo Bichette 2023 Spray Chart",
+    subtitle = "Balls in play classified by result using unflipped physical field-space coordinates",
+    x = NULL,
+    y = NULL,
+    color = "Result"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 11),
+    legend.position = "right"
+  )
+```
+
+# Kernel Density Estimation
+
+```{r kde-map, fig.width=8, fig.height=6}
+ggplot() +
+  stat_density_2d(
+    data = bo_plot,
+    aes(x = field_x, y = field_y, fill = after_stat(level), alpha = after_stat(level)),
+    geom = "polygon",
+    contour = TRUE
+  ) +
+  add_field_overlay() +
+  geom_point(
+    data = bo_plot,
+    aes(x = field_x, y = field_y),
+    color = "black",
+    alpha = 0.22,
+    size = 1.1
+  ) +
+  coord_fixed(xlim = plot_x_limits, ylim = plot_y_limits, expand = FALSE) +
+  scale_fill_viridis_c(option = "C", name = "Density") +
+  scale_alpha(range = c(0.15, 0.7), guide = "none") +
+  labs(
+    title = "Bo Bichette 2023 Kernel Density Map",
+    subtitle = "Density of balls in play with corrected baseball diamond overlay",
+    x = NULL,
+    y = NULL
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 11),
+    legend.position = "right"
+  )
+```
+
+# Radial 9-Zone Cluster Visualization and Chi-Square Test
+
+The original rectangular 9-zone framework is replaced here with a baseball-specific radial classification system. Each batted ball is classified by **distance from home plate** and **spray direction** using the unflipped physical field-space coordinates. The three fixed distance bands are infield contact from 0--150 feet, shallow outfield contact from 150--250 feet, and deep outfield contact from 250--450 feet. Each band is then split into left field, center field, and right field using fixed angle ranges inside fair territory. This section is intentionally **not handedness-adjusted** because it describes where the balls landed on the field, not pull/center/opposite tendencies from the hitter's perspective.
+
+```{r nine-zone-analysis, fig.width=8, fig.height=6}
+# -----------------------------
+# Radial fixed-distance 9-zone classification
+# -----------------------------
+# Depth bands are based on fixed baseball distances from home plate:
+#   Infield:          0 to 150 feet
+#   Shallow Outfield: 150 to 250 feet
+#   Deep Outfield:    250 to 450 feet
+#
+# Directional bands are based on field angle:
+#   Right Field: 45 to 75 degrees
+#   Center:      75 to 105 degrees
+#   Left Field:  105 to 135 degrees
+#
+# Caught foul balls are excluded from this specific 9-zone/entropy analysis
+# because the 9-zone study window is defined over fair territory only.
+
+zone_depth_breaks_ft <- c(0, 150, 250, 450)
+zone_depth_breaks <- ft_to_units(zone_depth_breaks_ft)
+
+zone_x_levels <- c("Left Field", "Center", "Right Field")
+zone_y_levels <- c("Infield", "Shallow Outfield", "Deep Outfield")
+
+zone_direction_specs <- tibble::tribble(
+  ~x_zone,       ~angle_min_deg, ~angle_max_deg,
+  "Right Field", 45,             75,
+  "Center",      75,             105,
+  "Left Field",  105,            135
+) %>%
+  mutate(x_zone = factor(x_zone, levels = zone_x_levels))
+
+zone_depth_specs <- tibble::tribble(
+  ~y_zone,             ~inner_ft, ~outer_ft,
+  "Infield",           0,         150,
+  "Shallow Outfield",  150,       250,
+  "Deep Outfield",     250,       450
+) %>%
+  mutate(
+    y_zone = factor(y_zone, levels = zone_y_levels),
+    inner_r = ft_to_units(inner_ft),
+    outer_r = ft_to_units(outer_ft)
+  )
+
+make_sector_polygon <- function(inner_r, outer_r, angle_min_deg, angle_max_deg, n = 120) {
+  outer_theta <- seq(angle_min_deg, angle_max_deg, length.out = n) * pi / 180
+  inner_theta <- seq(angle_max_deg, angle_min_deg, length.out = n) * pi / 180
+
+  outer_coords <- cbind(
+    outer_r * cos(outer_theta),
+    outer_r * sin(outer_theta)
+  )
+
+  if (inner_r == 0) {
+    coords <- rbind(
+      c(0, 0),
+      outer_coords,
+      c(0, 0)
+    )
+  } else {
+    inner_coords <- cbind(
+      inner_r * cos(inner_theta),
+      inner_r * sin(inner_theta)
+    )
+    coords <- rbind(
+      outer_coords,
+      inner_coords,
+      outer_coords[1, ]
+    )
+  }
+
+  st_polygon(list(coords))
+}
+
+zone_polygons_df <- expand_grid(
+  y_zone = zone_depth_specs$y_zone,
+  x_zone = zone_direction_specs$x_zone
+) %>%
+  left_join(zone_depth_specs, by = "y_zone") %>%
+  left_join(zone_direction_specs, by = "x_zone") %>%
+  mutate(
+    zone_9 = paste(y_zone, x_zone, sep = "_"),
+    geometry = pmap(
+      list(inner_r, outer_r, angle_min_deg, angle_max_deg),
+      ~ make_sector_polygon(..1, ..2, ..3, ..4)
+    )
+  )
+
+zone_polygons <- st_sf(
+  zone_polygons_df %>% select(-geometry),
+  # These are custom baseball-field coordinates, not latitude/longitude or a projected map CRS.
+  # Do not set crs = NA here; logical NA causes sf to throw an error.
+  geometry = do.call(st_sfc, zone_polygons_df$geometry)
+) %>%
+  mutate(
+    zone_area = as.numeric(st_area(geometry)),
+    area_share = zone_area / sum(zone_area)
+  )
+
+bo_zones <- bo_plot %>%
+  filter(!is.na(field_x), !is.na(field_y)) %>%
+  mutate(
+    radial_distance_units = sqrt(field_x^2 + field_y^2),
+    radial_distance_ft = radial_distance_units * FEET_PER_STATCAST_UNIT,
+    field_angle_deg = atan2(field_y, field_x) * 180 / pi,
+
+    # Fair-territory radial window.
+    in_fair_radial_window = field_angle_deg >= 45 &
+      field_angle_deg <= 135 &
+      radial_distance_ft >= zone_depth_breaks_ft[1] &
+      radial_distance_ft <= zone_depth_breaks_ft[length(zone_depth_breaks_ft)],
+
+    x_zone = case_when(
+      field_angle_deg >= 105 & field_angle_deg <= 135 ~ "Left Field",
+      field_angle_deg >= 75  & field_angle_deg < 105  ~ "Center",
+      field_angle_deg >= 45  & field_angle_deg < 75   ~ "Right Field",
+      TRUE ~ NA_character_
+    ),
+    y_zone = case_when(
+      radial_distance_ft >= 0   & radial_distance_ft <= 150 ~ "Infield",
+      radial_distance_ft > 150  & radial_distance_ft <= 250 ~ "Shallow Outfield",
+      radial_distance_ft > 250  & radial_distance_ft <= 450 ~ "Deep Outfield",
+      TRUE ~ NA_character_
+    ),
+    x_zone = factor(x_zone, levels = zone_x_levels),
+    y_zone = factor(y_zone, levels = zone_y_levels),
+    zone_9 = paste(y_zone, x_zone, sep = "_")
+  ) %>%
+  filter(in_fair_radial_window, !is.na(x_zone), !is.na(y_zone))
+
+n_zone_included <- nrow(bo_zones)
+n_zone_excluded <- bo_plot %>% filter(!is.na(field_x), !is.na(field_y)) %>% nrow() - n_zone_included
+
+zone_counts_9 <- zone_polygons %>%
+  st_drop_geometry() %>%
+  select(y_zone, x_zone, zone_9, zone_area, area_share, inner_ft, outer_ft, angle_min_deg, angle_max_deg) %>%
+  left_join(
+    bo_zones %>% count(y_zone, x_zone, zone_9, name = "observed"),
+    by = c("y_zone", "x_zone", "zone_9")
+  ) %>%
+  mutate(
+    observed = ifelse(is.na(observed), 0, observed),
+    observed_proportion = observed / sum(observed),
+    expected = sum(observed) * area_share,
+    density_ratio = observed_proportion / area_share,
+    residual = observed - expected
+  ) %>%
+  arrange(
+    factor(y_zone, levels = c("Deep Outfield", "Shallow Outfield", "Infield")),
+    factor(x_zone, levels = c("Left Field", "Center", "Right Field"))
+  )
+
+kable(
+  zone_counts_9 %>%
+    select(y_zone, x_zone, observed, observed_proportion, area_share, expected, density_ratio),
+  digits = 3
+)
+
+# Chi-square goodness-of-fit test
+# Null hypothesis: balls in play are distributed across the 9 zones in proportion
+# to the fair-territory area of each radial wedge.
+chisq_result_9 <- chisq.test(
+  x = zone_counts_9$observed,
+  p = zone_counts_9$area_share,
+  rescale.p = TRUE
+)
+
+chisq_result_9
+
+expected_counts_9 <- zone_counts_9 %>%
+  mutate(expected = round(expected, 2)) %>%
+  select(zone_9, observed, expected, observed_proportion, area_share, density_ratio, residual)
+
+kable(expected_counts_9, digits = 3)
+
+# Entropy summaries
+# Raw entropy describes how evenly Bo's batted balls are spread across the 9 zones.
+# Area-adjusted entropy describes how evenly the distribution looks after accounting
+# for how much fair-territory area each zone contains.
+observed_p <- zone_counts_9$observed_proportion
+area_p <- zone_counts_9$area_share
+nonzero <- observed_p > 0 & area_p > 0
+
+raw_entropy <- -sum(observed_p[observed_p > 0] * log(observed_p[observed_p > 0]))
+normalized_raw_entropy <- raw_entropy / log(nrow(zone_counts_9))
+kl_divergence_area <- sum(observed_p[nonzero] * log(observed_p[nonzero] / area_p[nonzero]))
+area_adjusted_evenness <- exp(-kl_divergence_area)
+
+entropy_summary_9 <- tibble(
+  n_included = n_zone_included,
+  n_excluded = n_zone_excluded,
+  raw_entropy = raw_entropy,
+  normalized_raw_entropy = normalized_raw_entropy,
+  kl_divergence_from_area_baseline = kl_divergence_area,
+  area_adjusted_evenness = area_adjusted_evenness
+)
+
+kable(entropy_summary_9, digits = 3)
+
+zone_sf <- zone_polygons %>%
+  left_join(
+    zone_counts_9 %>% select(zone_9, observed, observed_proportion, expected, density_ratio),
+    by = "zone_9"
+  ) %>%
+  mutate(
+    observed = ifelse(is.na(observed), 0, observed),
+    observed_proportion = ifelse(is.na(observed_proportion), 0, observed_proportion),
+    expected = ifelse(is.na(expected), 0, expected),
+    label = paste0(
+      observed,
+      "\nObs: ", round(100 * observed_proportion, 1), "%",
+      "\nExp: ", round(100 * area_share, 1), "%"
+    )
+  )
+
+label_points <- st_centroid(zone_sf) %>%
+  mutate(
+    label_x = st_coordinates(.)[, 1],
+    label_y = st_coordinates(.)[, 2]
+  ) %>%
+  st_drop_geometry()
+
+# Radial 9-zone cluster visualization
+nine_zone_plot <- ggplot() +
+  geom_sf(
+    data = zone_sf,
+    aes(fill = observed),
+    color = "white",
+    linewidth = 0.8,
+    alpha = 0.75
+  ) +
+  add_field_overlay() +
+  geom_point(
+    data = bo_zones,
+    aes(x = field_x, y = field_y),
+    alpha = 0.25,
+    size = 0.9,
+    color = "black"
+  ) +
+  geom_text(
+    data = label_points,
+    aes(x = label_x, y = label_y, label = label),
+    fontface = "bold",
+    size = 3.1
+  ) +
+  coord_sf(xlim = plot_x_limits, ylim = plot_y_limits, expand = FALSE, datum = NA) +
+  scale_fill_viridis_c(option = "C", name = "BIP Count") +
+  labs(
+    title = "Bo Bichette 2023 Radial 9-Zone Batted-Ball Map",
+    subtitle = "Fixed-distance depth bands: infield 0-150 ft, shallow outfield 150-250 ft, deep outfield 250-450 ft; expected shares are area-weighted",
+    x = NULL,
+    y = NULL
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 15),
+    plot.subtitle = element_text(hjust = 0.5, size = 9),
+    legend.position = "right"
+  )
+
+nine_zone_plot
+```
+
+The chi-square test now evaluates whether Bichette's batted balls are distributed across the nine radial zones in proportion to the fair-territory area of each zone. This is more appropriate than testing against an even 1/9 baseline because the zones are not all the same size. A small p-value indicates that the observed distribution differs from the area-adjusted expected distribution.
+
+# Local Moran's I with Area-Adjusted Rectangular Field Cells
+
+The radial LISA grid is replaced here with a clipped rectangular field grid. This is easier to interpret for Local Moran's I because each spatial unit represents a small local area of the field, and neighboring cells are defined by ordinary grid adjacency. To avoid the original problem of cells extending into non-field space, the rectangular grid is clipped to the fair-territory study window. Local Moran's I is calculated on **area-adjusted standardized residuals**, not raw batted-ball counts. This means each cell's observed count is compared to the expected count based on that cell's share of the total included field area.
+
+```{r local-morans-i-rectangular-area-adjusted, fig.width=8, fig.height=6}
+library(sf)
+library(spdep)
+
+# -----------------------------
+# Rectangular field grid for Local Moran's I
+# -----------------------------
+# This LISA version uses small rectangular/square cells clipped to the fair-territory
+# field window. The expected count in each cell is proportional to the cell's clipped
+# field area, so partial edge cells do not distort the analysis.
+#
+# Local Moran's I is run on the standardized area-adjusted residual:
+#   (Observed count - Expected count) / sqrt(Expected count)
+# where Expected count is based on each cell's share of total included field area.
+
+# Study window: fair territory from the RF foul line to the LF foul line,
+# using the same custom baseball-field coordinates as the rest of the project.
+# These are not latitude/longitude coordinates and no geographic CRS is assigned.
+lisa_field_radius <- ft_to_units(450)
+lisa_theta <- seq(pi / 4, 3 * pi / 4, length.out = 400)
+
+lisa_field_coords <- rbind(
+  c(0, 0),
+  cbind(lisa_field_radius * cos(lisa_theta), lisa_field_radius * sin(lisa_theta)),
+  c(0, 0)
+)
+
+lisa_field_polygon <- st_sf(
+  geometry = st_sfc(st_polygon(list(lisa_field_coords)))
+)
+
+# Create an evenly spaced rectangular grid, then clip it to fair territory.
+# A 50-foot cell size gives a fine-grained map without making the cells too sparse.
+lisa_cell_size <- ft_to_units(50)
+
+lisa_grid_raw <- st_make_grid(
+  lisa_field_polygon,
+  cellsize = lisa_cell_size,
+  square = TRUE
+) %>%
+  st_sf(geometry = .) %>%
+  mutate(raw_cell_id = row_number())
+
+lisa_grid_clipped <- suppressWarnings(
+  st_intersection(lisa_grid_raw, lisa_field_polygon)
+) %>%
+  st_collection_extract("POLYGON") %>%
+  mutate(
+    lisa_cell_id = row_number(),
+    cell_area = as.numeric(st_area(geometry)),
+    full_cell_area = lisa_cell_size^2,
+    area_fraction_of_full_cell = cell_area / full_cell_area
+  ) %>%
+  # Drop extremely tiny slivers that can create unstable expected counts.
+  filter(area_fraction_of_full_cell >= 0.10) %>%
+  mutate(lisa_cell_id = row_number())
+
+# Points included in the LISA analysis are restricted to the same fair-territory
+# window used by the clipped rectangular grid.
+bo_lisa_points <- bo_plot %>%
+  filter(!is.na(field_x), !is.na(field_y)) %>%
+  mutate(
+    radial_distance_ft = sqrt(field_x^2 + field_y^2) * FEET_PER_STATCAST_UNIT,
+    field_angle_deg = atan2(field_y, field_x) * 180 / pi,
+    in_lisa_window = field_angle_deg >= 45 &
+      field_angle_deg <= 135 &
+      radial_distance_ft >= 0 &
+      radial_distance_ft <= 450
+  ) %>%
+  filter(in_lisa_window)
+
+bo_lisa_points_sf <- bo_lisa_points %>%
+  st_as_sf(coords = c("field_x", "field_y"), remove = FALSE)
+
+# Count batted balls in each clipped rectangular cell.
+lisa_point_counts <- st_join(bo_lisa_points_sf, lisa_grid_clipped, join = st_within) %>%
+  st_drop_geometry() %>%
+  filter(!is.na(lisa_cell_id)) %>%
+  count(lisa_cell_id, name = "bip_count")
+
+# Area-adjusted baseline and residuals.
+lisa_zone_counts <- lisa_grid_clipped %>%
+  left_join(lisa_point_counts, by = "lisa_cell_id") %>%
+  mutate(
+    bip_count = ifelse(is.na(bip_count), 0, bip_count),
+    area_share = cell_area / sum(cell_area),
+    expected_count = sum(bip_count) * area_share,
+    observed_share = bip_count / sum(bip_count),
+    observed_expected_ratio = ifelse(expected_count > 0, bip_count / expected_count, NA_real_),
+    area_adjusted_residual = bip_count - expected_count,
+    standardized_residual = ifelse(expected_count > 0, area_adjusted_residual / sqrt(expected_count), NA_real_),
+    residual_centered = standardized_residual - mean(standardized_residual, na.rm = TRUE)
+  )
+
+# Spatial neighbors and row-standardized weights for the clipped rectangular cells.
+# Queen contiguity is used so cells sharing either an edge or a corner count as neighbors.
+lisa_neighbors <- poly2nb(lisa_zone_counts, queen = TRUE)
+lisa_weights <- nb2listw(lisa_neighbors, style = "W", zero.policy = TRUE)
+
+# Local Moran's I statistics on area-adjusted standardized residuals.
+lisa_local <- localmoran(
+  lisa_zone_counts$standardized_residual,
+  lisa_weights,
+  zero.policy = TRUE
+)
+
+lisa_zone_counts <- lisa_zone_counts %>%
+  mutate(
+    local_i = lisa_local[, "Ii"],
+    local_i_z = lisa_local[, "Z.Ii"],
+    local_i_p = lisa_local[, "Pr(z != E(Ii))"],
+    spatial_lag_residual = lag.listw(lisa_weights, standardized_residual, zero.policy = TRUE),
+    lag_centered = spatial_lag_residual - mean(standardized_residual, na.rm = TRUE),
+    lisa_cluster = case_when(
+      local_i_p <= 0.05 & residual_centered > 0 & lag_centered > 0 ~ "High-High",
+      local_i_p <= 0.05 & residual_centered < 0 & lag_centered < 0 ~ "Low-Low",
+      local_i_p <= 0.05 & residual_centered > 0 & lag_centered < 0 ~ "High-Low",
+      local_i_p <= 0.05 & residual_centered < 0 & lag_centered > 0 ~ "Low-High",
+      TRUE ~ "Not Significant"
+    ),
+    lisa_cluster = factor(
+      lisa_cluster,
+      levels = c("High-High", "Low-Low", "High-Low", "Low-High", "Not Significant")
+    )
+  )
+
+# Table of the local statistics used in the LISA map.
+lisa_zone_counts %>%
+  st_drop_geometry() %>%
+  select(
+    lisa_cell_id,
+    cell_area,
+    area_fraction_of_full_cell,
+    bip_count,
+    expected_count,
+    observed_expected_ratio,
+    standardized_residual,
+    spatial_lag_residual,
+    local_i,
+    local_i_z,
+    local_i_p,
+    lisa_cluster
+  ) %>%
+  arrange(lisa_cell_id) %>%
+  kable(digits = 3)
+
+# Plot limits based on the clipped rectangular LISA grid.
+lisa_bbox <- st_bbox(lisa_zone_counts)
+lisa_x_limits <- c(lisa_bbox["xmin"] - 5, lisa_bbox["xmax"] + 5)
+lisa_y_limits <- c(0, lisa_bbox["ymax"] + 5)
+
+# Local Moran's I cluster map using clipped rectangular cells and area-adjusted residuals.
+ggplot() +
+  geom_sf(
+    data = lisa_zone_counts,
+    aes(fill = lisa_cluster),
+    color = "white",
+    linewidth = 0.35,
+    alpha = 0.8
+  ) +
+  geom_point(
+    data = bo_lisa_points,
+    aes(x = field_x, y = field_y),
+    alpha = 0.3,
+    size = 0.7
+  ) +
+  add_field_overlay() +
+  coord_sf(xlim = lisa_x_limits, ylim = lisa_y_limits, expand = FALSE, datum = NA) +
+  scale_fill_manual(
+    values = c(
+      "High-High" = "#F8766D",
+      "Low-Low" = "#00BA38",
+      "High-Low" = "#C77CFF",
+      "Low-High" = "#619CFF",
+      "Not Significant" = "#4D89F9"
+    ),
+    drop = FALSE,
+    name = "LISA Cluster"
+  ) +
+  labs(
+    title = "Bo Bichette 2023 Local Moran's I Cluster Map",
+    subtitle = "Local spatial autocorrelation of area-adjusted BIP residuals using clipped rectangular field cells",
+    x = NULL,
+    y = NULL
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 15),
+    plot.subtitle = element_text(hjust = 0.5, size = 9),
+    legend.position = "right"
+  )
+```
+
+This LISA analysis uses small rectangular cells clipped to fair territory and evaluates clustering in **area-adjusted residuals**, not raw counts. High-High cells identify neighboring field areas where Bichette recorded more batted balls than expected given cell area, while Low-Low cells identify neighboring areas with fewer batted balls than expected. High-Low and Low-High cells identify local spatial outliers. The global Moran's I grid map remains excluded because the local cluster map is more useful for identifying where Bichette's batted-ball concentrations occur on the field.
+
+
+# Ripley's L Function with Monte Carlo Envelope
+
+```{r ripleys-l, fig.width=8, fig.height=6}
+library(spatstat.geom)
+library(spatstat.explore)
+
+bo_xy <- bo_plot %>%
+  filter(!is.na(field_x), !is.na(field_y)) %>%
+  select(field_x, field_y)
+
+# Fair-territory window using the same coordinate units as the KDE and LISA analysis.
+# These are custom baseball-field coordinates, not a geographic CRS.
+field_radius <- max(
+  center_field_distance,
+  sqrt(bo_plot$field_x^2 + bo_plot$field_y^2),
+  na.rm = TRUE
+) + 5
+
+theta_field <- seq(pi / 4, 3 * pi / 4, length.out = 300)
+
+field_window_coords <- data.frame(
+  x = c(0, field_radius * cos(theta_field), 0),
+  y = c(0, field_radius * sin(theta_field), 0)
+)
+
+field_window <- owin(
+  poly = list(
+    x = field_window_coords$x,
+    y = field_window_coords$y
+  )
+)
+
+inside_field <- inside.owin(
+  x = bo_xy$field_x,
+  y = bo_xy$field_y,
+  w = field_window
+)
+
+bo_xy_in <- bo_xy[inside_field, ]
+
+bo_ppp <- ppp(
+  x = bo_xy_in$field_x,
+  y = bo_xy_in$field_y,
+  window = field_window
+)
+
+summary(bo_ppp)
+
+set.seed(123)
+
+bo_l_envelope <- envelope(
+  bo_ppp,
+  fun = Lest,
+  nsim = 99,
+  correction = "border",
+  global = FALSE
+)
+
+bo_l_envelope_df <- data.frame(
+  distance = bo_l_envelope$r,
+  observed_L = bo_l_envelope$obs,
+  theoretical_L = bo_l_envelope$theo,
+  lower = bo_l_envelope$lo,
+  upper = bo_l_envelope$hi
+)
+
+ggplot(bo_l_envelope_df, aes(x = distance)) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.25) +
+  geom_line(aes(y = observed_L), linewidth = 1) +
+  geom_line(aes(y = theoretical_L), linetype = "dashed", linewidth = 1) +
+  labs(
+    title = "Bo Bichette 2023 Ripley's L Function with Monte Carlo Envelope",
+    subtitle = "Observed clustering across distances compared to simulated complete spatial randomness",
+    x = "Distance in transformed Statcast coordinate units",
+    y = "L(r)"
+  ) +
+  theme_minimal()
+```
+
+# Directional Spray Angle Analysis
+
+This section is the only part of the file that uses batter-perspective handedness adjustment. The angle is calculated from `batter_x` and `batter_y`, where left-handed hitters would be horizontally reflected and right-handed hitters, including Bichette, remain unchanged. Negative angles indicate pull-side contact, positive angles indicate opposite-field contact, and values near zero indicate center-field contact.
+
+```{r directional-statistics}
+bo_angles <- bo_plot %>%
+  filter(!is.na(field_x), !is.na(field_y)) %>%
+  mutate(
+    raw_spray_angle_rad = atan2(batter_x, batter_y),
+    spray_angle_deg = raw_spray_angle_rad * 180 / pi,
+    spray_direction_model = case_when(
+      spray_angle_deg < -15 ~ "Pull",
+      spray_angle_deg >= -15 & spray_angle_deg <= 15 ~ "Center",
+      spray_angle_deg > 15 ~ "Opposite",
+      TRUE ~ NA_character_
+    )
+  )
+
+bo_angles %>%
+  summarize(
+    mean_spray_angle = mean(spray_angle_deg, na.rm = TRUE),
+    median_spray_angle = median(spray_angle_deg, na.rm = TRUE),
+    sd_spray_angle = sd(spray_angle_deg, na.rm = TRUE),
+    n = n()
+  ) %>%
+  kable(digits = 3)
+
+bo_direction_model_summary <- bo_angles %>%
+  count(spray_direction_model, name = "n") %>%
+  mutate(percent = round(100 * n / sum(n), 1))
+
+kable(bo_direction_model_summary, digits = 1)
+```
+
+```{r spray-angle-density, fig.width=8, fig.height=5}
+ggplot(bo_angles, aes(x = spray_angle_deg)) +
+  geom_density(linewidth = 1.2) +
+  geom_vline(xintercept = 0, linetype = "dashed", linewidth = 1) +
+  labs(
+    title = "Bo Bichette 2023 Spray Angle Density",
+    subtitle = "Negative values indicate pull-side contact; positive values indicate opposite-field contact",
+    x = "Spray Angle (degrees)",
+    y = "Density"
+  ) +
+  theme_minimal()
+```
+
+```{r spray-direction-bar-chart, fig.width=7, fig.height=5}
+ggplot(
+  bo_direction_model_summary,
+  aes(x = spray_direction_model, y = percent)
+) +
+  geom_col() +
+  labs(
+    title = "Bo Bichette 2023 Modeled Spray Direction",
+    subtitle = "Classification based on spray-angle cutoffs",
+    x = "Spray Direction",
+    y = "Percent of Balls in Play"
+  ) +
+  theme_minimal()
+```
+
+```{r one-sample-spray-angle-test}
+# Null hypothesis: mean spray angle = 0 degrees
+# Interpretation: a mean of 0 represents a perfectly centered average spray direction.
+bo_angle_ttest <- t.test(
+  bo_angles$spray_angle_deg,
+  mu = 0
+)
+
+bo_angle_ttest
+```
+
+# Notes for the 15-Player Extension
+
+For the 15-player comparative file, the same physical coordinate pipeline should be used first. Then a separate handedness-adjusted batter-perspective coordinate should be created only for directional comparisons. Right-handed hitters keep the same field-space x-coordinate, while left-handed hitters should have the field-space x-coordinate multiplied by -1. The y-coordinate remains unchanged.
+
+Physical field analyses such as KDE, 9-zone maps, Moran's I, LISA, Ripley's L, convex hulls, and entropy should use the physical `field_x` and `field_y` coordinates with no handedness adjustment. Batter-perspective spray angle summaries, pull/center/opposite classification, mean spray angle, and directional statistics should use `batter_x` and `batter_y`.
