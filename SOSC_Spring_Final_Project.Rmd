@@ -26,12 +26,20 @@ library(sf)
 
 # Introduction
 
+In the spring of 2023, Major League Baseball implemented one of the most consequential rule changes in the modern era: a ban on the defensive shift. Before then, teams had increasingly relied on radical alignments such as stacking three infielders on one side of second base ti neutralize pull hitters. By restricting defenses to two infielders on each side of second base, the question of where hitters actually hit the ball becomes more important. The spatial distribution of batted balls is once again the primary contest between hitters and fielders.
+
 Understanding how Major League Baseball (MLB) players hits are distributed across the diamond is central to
-evaluating defensive strategies. While traditional statistics summarize performance outcomes, they often overlook the spatial dimension of hitting.
+evaluating defensive strategies. While traditional statistics summarize performance outcomes, they often overlook the spatial dimension of hitting. Without formal spatial techniques, it remains unclear as to whether hitters exhibit genuine clustering in their batted ball locations.
 
-This project investigates whether MLB hitters exhibit spatial clustering in their batted ball locations, and how these patterns of concentration vary among a selection of high-volume hitters. We are using data from the 2023 MLB regular season.  High-volume hitters will be defined as any player with a minimum of 500 plate appearances and a minimum of 100 batted balls in play. 
+This project investigates whether MLB hitters exhibit spatial clustering in their batted ball locations, and how these patterns of concentration vary among a selection of high-volume hitters. We are using data from the 2023 MLB regular season.  High-volume hitters will be defined as any player with a minimum of five-hundred plate appearances and a minimum of one-hundred batted balls in play. 
 
-To implement this analysis, we will employ spatial clustering methods such as density-based clustering or kernel density estimation to identify regions of high batted ball concentration. Then we will assess statistical significance through a series of permutations, determining whether clustering patterns deviate from randomness.
+To implement this analysis, we will employ spatial clustering methods such as density-based clustering and kernel density estimation to identify regions of high batted ball concentration. Then we will assess statistical significance through a series of permutations, determining whether clustering patterns deviate from randomness.
+
+This project’s primary data source is Baseball Savant, the official repository for MLB Statcast data. This source was chosen because it is the only source of pitch-level tracked batted-ball location data for MLB. It includes batted ball coordinates, player names, game dates, batter handedness, and event-level descriptive statistics. FanGraphs directional hitting data were also used to classify hitter tendencies as pull, center, opposite-field, or balanced. By focusing this analysis on the 2023 MLB regular season, the defensive shift restrictions create a more standardized environment for studying batted-ball distributions. 
+
+This project’s study area is the fair-territory region of the baseball field, including home runs. While this is not a traditional study area, it functions as a bounded spatial region with meaningful subregions, including the infield, left field, center field, and right field. The baseball field overlaid on the visualizations uses an approximation for its dimensions because MLB ballparks vary in outfield wall distances and boundary shapes.  
+
+By treating the baseball field as a continuous spatial domain, this analysis offers a more rigorous foundation for the kinds of positioning decisions that teams face.
 
 \newpage
 # Literature Background
@@ -69,17 +77,36 @@ Finally, an earlier line of work focuses on the visualization of spatial basebal
 \newpage
 # Data and Methodology
 
-To arrive at the 15 players of interest for this study, MLB players with at least 500 plate appearances (PAs) in the 2023 season were identified. 136 players met this criteria. Then batted ball dispersion data for each player was collected, and this data captures how frequently each player hits the ball to each field direction. The metrics of interest were pull percentage (pull%), opposite-field percentage (oppo%), and straight ahead percentage (cent%). Then each player was classified into one of four archetypes: balanced, center, opposite-field (oppo), or pull. If a player’s pull%, oppo%, or cent% is larger than 40% they were classified into the associated archetype of the direction the tend to hit the most. If a player’s pull%, oppo%, and cent% were all less than 40% this hitter would be classified as a balanced hitter. 
+## Unit of Analysis and Data Preparation
 
-75 of the players were classified as pull hitters, 51 as balanced hitters, 9 as center hitters, and 1 as an opposite field hitter. A stratified sampling approach was then used to ensure representation across all player archetypes. Based on proportional allocation from the full sample of 136 players, the initial values were approximately 8.27 pull hitters, 5.63 balanced hitters, 0.99 center hitters, and 0.11 opposite-field hitters given a sample size of 15 total players.  
+This project’s unit of analysis is individual fair-territory batted balls, including home runs. Each observation represents a ball hit by a player in fair territory during the 2023 MLB season and is treated as spatial point data. Statcast’s hc_x and hc_y variables are image-based plotting coordinates and do not provide spatially interpretable field-distance coordinates. These variables were transformed into spray_x and spray_y to set home plate as the origin, extend the positive y-axis toward center field, and position the x-axis to capture horizontal location 
+(negative left, positive right).
 
-These values were then rounded to produce the final sample. Center and opposite-field hitters were both rounded to 1 ensuring that each archetype is represented in the sample. This rounding occurred because excluding the smaller groups would eliminate meaningful variation in hitting tendencies. Pull and balanced hitters were rounded down to 8 and 5 to maintain the total sample size of 15 while keeping the distribution as close as possible to the original proportions. 
+## Sampling
 
-A final sample size of fifteen was chosen to balance representativeness of the overall 136 player population and to ensure the dataset remained manageable for spatial analysis.
+To construct the player sample, MLB hitters with at least 500 plate appearances were identified, producing an initial pool of 136 players. This threshold was put in place to ensure each player had sufficient batted-ball events for spatial analysis. Then, players were classified into a directional archetype using their pull, center, and opposite-field percentages. If one of these directional percentages exceeded 40%, the player was classified as a pull, center, or opposite-field hitter based on their principal directional tendency. If none exceeded 40%, then the player was classified as balanced. This yielded 75 pull, 51 balanced, 9 center, and 1 opposite-field hitter. A stratified sampling approach was implemented to preserve the distribution of directional archetypes in the selection of 15 players: 8 pull, 5 balanced, 1 center, and 1 opposite-field hitter were randomly selected. Center and opposite-field hitters were rounded up to the nearest integer; balanced and pull hitters were rounded down to the nearest integer to ensure representation of all directional archetypes and sample size.
 
-The fifteen players chosen are as follows. Pull Hitters: Tyler Stephenson-R, Whit Merrifield-R, Jake Cronenworth-L, Seiya Suzuki-R, CJ Abrams-L, Josh Lowe-L, Josh Jung-R, Teoscar Hernández-R. Balanced hitters: Trent Grisham-L, Pete Alonso-R, Eugenio Suárez-R, TJ Friedl-L, J.T. Realmuto-R. Center Hitter: Yandy Díaz-R. Opposite-Field Hitter: Bo Bichette-R.
+## Spatial and Directional Analysis
 
-The side from which a player bats was not considered in constructing the sampling method. Nevertheless, the resulting sample which consisted of 5 left-handed batters and 10 right-handed batters approximately reflects the overall distribution of handedness in Major League Baseball of 30.3% (Grondin et al., 1999, as cited in Nachtigal & Barnes, 2019).
+This project utilizes statistical tests and spatial visualizations to analyze the data. First, a player’s batted balls were plotted using the transformed spray_x and spray_y coordinates on the approximated baseball field. Each batted ball was then color classified by the result of the play (single, double, triple, home run, out, or error). Next, the field was divided into 9 subregions based on depth and horizontal alignment. The observations in each subregion were counted to compare and help determine in which areas of the field a hitter’s batted balls tend to concentrate.
+A $\chi^2$ test was then conducted to evaluate if observed batted-ball distributions significantly deviated from a spatially uniform distribution of balls in each of the 9 zones. Next, spatial autocorrelation was evaluated using Global Moran’s I and Local Indicators of Spatial 
+Autocorrelation (LISA). Global Moran’s I was tested to determine if subregions with similar batted-ball counts were spatially clustered. LISA was used to determine where significant spatial autocorrelation exists locally and to produce LISA visualizations. Kernel density estimation was used to create continuous density surfaces highlighting areas where each player’s batted balls tend to cluster.  
+The Ripley’s L function was used to analyze batted-ball clustering by using the distance between observations to determine whether points are more clustered or dispersed compared to complete spatial randomness (CSR). Each player’s Ripley’s L curve was compared to a Monte Carlo envelope constructed by simulating random point patterns within the study area. If the observed Ripley’s L curve was above the envelope at a given distance, this indicated that points exhibited more spatial clustering than expected by CSR. If the pattern fell below the envelope, then the observed points were more dispersed at that given distance.
+A normalized spatial entropy index was calculated using the hitters’ 9-zone batted ball proportions to summarize overall concentration. Shannon entropy was selected as it provides a single scalar measure of distributional concentration that is directly comparable across players. A lower entropy signifies that a hitter’s batted balls are concentrated in fewer zones, and a higher entropy indicates a more even distribution across the study area. Normalization is accomplished by dividing Shannon entropy by the maximum possible entropy across the nine zones.
+
+## Software
+
+All the data analysis and visualizations were conducted in R Studio using R. Statcast batted-ball data were accessed through the baseballr package (Petti & Gilani, 2024). FanGraphs directional hitting data were used to classify hitters by batted-ball tendency. Batter archetype classification and stratified sampling were completed using FanGraphs data in Excel before the selected sample was analyzed in R (Weinberg, 2015). 
+
+\newpage
+# Results and Discussion
+
+\newpage
+# Conclusion
+
+\newpage
+# Appendix
+
 
 
 
