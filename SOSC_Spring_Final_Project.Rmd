@@ -2,6 +2,7 @@
 output:
   pdf_document: default
   html_document: default
+linestretch: 1.5
 ---
 \thispagestyle{empty}
 \begin{center}
