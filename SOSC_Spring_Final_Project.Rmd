@@ -23,7 +23,12 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(sf)
 ```
+\begin{center}
+\includegraphics[width=\textwidth,keepaspectratio]{combined_infographic_white_background.png}
+\end{center}
 
+
+\newpage
 # Introduction
 
 In the spring of 2023, Major League Baseball implemented one of the most consequential rule changes in the modern era: a ban on the defensive shift. Before then, teams had increasingly relied on radical alignments such as stacking three infielders on one side of second base ti neutralize pull hitters. By restricting defenses to two infielders on each side of second base, the question of where hitters actually hit the ball becomes more important. The spatial distribution of batted balls is once again the primary contest between hitters and fielders.
@@ -98,11 +103,20 @@ A normalized spatial entropy index was calculated using the hitters’ 9-zone ba
 
 All the data analysis and visualizations were conducted in R Studio using R. Statcast batted-ball data were accessed through the baseballr package (Petti & Gilani, 2024). FanGraphs directional hitting data were used to classify hitters by batted-ball tendency. Batter archetype classification and stratified sampling were completed using FanGraphs data in Excel before the selected sample was analyzed in R (Weinberg, 2015). 
 
+
+
+
 \newpage
 # Results and Discussion
 
+
+
+
 \newpage
 # Conclusion
+
+
+
 
 \newpage
 # References
@@ -157,6 +171,9 @@ Wickramasinghe, L., Leblanc, A., & Muthukumarana, S. (2020). Model-based estimat
 Young, C., Dalpiaz, D., & Eck, D. J. (2020). *SEAM methodology for context-rich player matchup evaluations*. arXiv. https://arxiv.org/abs/2005.07742v1
 
 \endgroup
+
+
+
 
 
 \newpage
