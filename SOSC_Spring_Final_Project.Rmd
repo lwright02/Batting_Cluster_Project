@@ -105,6 +105,61 @@ All the data analysis and visualizations were conducted in R Studio using R. Sta
 # Conclusion
 
 \newpage
+# References
+
+\begingroup
+\setlength{\parindent}{-0.5in}
+\setlength{\leftskip}{0.5in}
+\setlength{\parskip}{8pt}
+
+Bailey, S. R. (2017). *Forecasting batting averages in MLB* [Master's project, Simon Fraser University]. Summit Research Repository. https://summit.sfu.ca/item/17740
+
+Baldwin, D. G. (2008). Mechanics of baseball pitching and batting. In *Routledge handbook of biomechanics and human movement science* (pp. 467–510). CRC Press. https://doi.org/10.1201/9781420020212-20
+
+Comiskey, C. (2017). *Take me out to (analyze) the ballgame: Visualization and analysis techniques for big spatial data* [Doctoral dissertation, Oregon State University]. Oregon State University ScholarsArchive. https://ir.library.oregonstate.edu/concern/graduate_thesis_or_dissertations/37720j172
+
+Cox, A. (2010). *Geospatial analysis of baseball clustering in the Texas Rangers' Ballpark in Arlington* [Master's thesis, Texas State University]. ProQuest Dissertations and Theses Global. https://www.proquest.com/docview/900867912
+
+Cross, J., & Sylvan, D. (2015). Modeling spatial batting ability using a known covariance matrix. *Journal of Quantitative Analysis in Sports*, *11*(3). https://doi.org/10.1515/jqas-2014-0089
+
+Gergis, H. (2024). *Exploring factors influencing on-base percentage in modern baseball* [Master's thesis, Lund University]. Lund University Publications. https://lup.lub.lu.se/student-papers/search/publication/9175631
+
+Healey, G. (2017). Learning, visualizing, and assessing a model for the intrinsic value of a batted ball. *IEEE Access*, *5*, 13811–13822. https://doi.org/10.1109/access.2017.2728663
+
+Hilton, N. (2021). *Location, location, location: Analyzing the impact of pitch command on at-bat outcomes in Major League Baseball*. https://doi.org/10.22371/03.2021.003
+
+Hochstedler, J. H. (2016). *Incorporating spatiotemporal machine learning into Major League Baseball and the National Football League* [Master's thesis, Massachusetts Institute of Technology]. DSpace@MIT. http://hdl.handle.net/1721.1/112451
+
+Hwang, S., Kim, J., & Park, I. (2025). Machine learning-driven defensive strategy in baseball: Estimating optimal defensive positioning for outfielders. *Proceedings of the Institution of Mechanical Engineers, Part P: Journal of Sports Engineering and Technology*. https://doi.org/10.1177/17543371251348323
+
+Kaji, H., & Sylvan, D. (2023). Applications of point pattern analysis in baseball. In L. Csató (Ed.), *10th MathSport International Conference Proceedings 2023*. Corvinus University of Budapest.
+
+Kato, M., & Yanai, T. (2022). Launch fly balls for better batting statistics: Applicability of "fly-ball revolution" to Japan's professional baseball league. *International Journal of Performance Analysis in Sport*, *22*(5), 1–17. https://doi.org/10.1080/24748668.2022.2075302
+
+Marcou, C. (2020). *Investigating Major League Baseball pitchers and quality of contact through cluster analysis* [Honors project, Grand Valley State University]. ScholarWorks@GVSU. https://scholarworks.gvsu.edu/honorsprojects/765/
+
+*Measuring baseball defensive value using Statcast data*. (2017). ProQuest Dissertations and Theses Global. https://www.proquest.com/openview/5a200d84d647732598e2d19a702a8a19/1
+
+Michielssen, S., Maloof, A., Haumacher, J., Dreger, A., Bonicki, K., & Hallgren, K. (2024). Using large language models to generate baseball spray charts in the absence of numerical data. *Proceedings of the Institution of Mechanical Engineers, Part P: Journal of Sports Engineering and Technology*. https://doi.org/10.1177/17543371241257734
+
+MLB. (2026). *Statcast*. MLB.com Glossary. https://www.mlb.com/glossary/statcast
+
+Oda, T., & Hirotsu, N. (2026). Classification of fielders in Nippon Professional Baseball using a Gaussian mixture clustering model. *Frontiers in Sports and Active Living*, *8*, Article 1612463. https://doi.org/10.3389/fspor.2026.1612463
+
+Powers, S., & Yurko, R. (2026). Swinging, fast and slow: Interpreting variation in baseball swing tracking metrics. *The American Statistician*, 1–19. https://doi.org/10.1080/00031305.2026.2633338
+
+Superak, H. M. (2011). *Analyzing batting patterns of Major League Baseball players for advance scouting reports: Using R to generate high-level spatial plots of PITCHf/x data* [Master's thesis, Emory University]. Emory Theses and Dissertations. https://etd.library.emory.edu/concern/etds/sq87bv041
+
+Whiteside, D., McGinnis, R. S., Deneweth, J. M., Zernicke, R. F., & Goulet, G. C. (2015). Ball flight kinematics, release variability and in-season performance in elite baseball pitching. *Scandinavian Journal of Medicine & Science in Sports*, *26*(3), 256–265. https://doi.org/10.1111/sms.12443
+
+Wickramasinghe, L., Leblanc, A., & Muthukumarana, S. (2020). Model-based estimation of baseball batting metrics. *Journal of Applied Statistics*, *48*(10), 1–23. https://doi.org/10.1080/02664763.2020.1775792
+
+Young, C., Dalpiaz, D., & Eck, D. J. (2020). *SEAM methodology for context-rich player matchup evaluations*. arXiv. https://arxiv.org/abs/2005.07742v1
+
+\endgroup
+
+
+\newpage
 # Appendix
 
 
